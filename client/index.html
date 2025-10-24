@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Server TV</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        background: #000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: white;
+        overflow: hidden;
+      }
+      
+      .container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .video-player {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      video {
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+      }
+      
+      .controls {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        padding: 15px;
+        border-radius: 10px;
+        display: none;
+        gap: 10px;
+        align-items: center;
+      }
+      
+      .controls.show {
+        display: flex;
+      }
+      
+      .video-selector {
+        padding: 8px 12px;
+        background: #333;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      
+      .status {
+        font-size: 14px;
+        opacity: 0.8;
+      }
+      
+      .loading {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="loading" id="loading">Carregando vídeos...</div>
+      
+      <div class="video-player">
+        <video id="videoPlayer" controls loop autoplay muted>
+          <source src="/videos/ajinomoto_tv3_recepcao.mp4" type="video/mp4" />
+          Seu navegador não suporta o elemento de vídeo.
+        </video>
+      </div>
+      
+      <div class="controls" id="controls">
+        <span class="status">Vídeo:</span>
+        <select class="video-selector" id="videoSelector">
+          <option value="">Carregando...</option>
+        </select>
+        <span class="status" id="videoStatus">Conectado</span>
+      </div>
+    </div>
+
+    <script>
+      class VideoPlayer {
+        constructor() {
+          this.player = document.getElementById('videoPlayer');
+          this.selector = document.getElementById('videoSelector');
+          this.controls = document.getElementById('controls');
+          this.loading = document.getElementById('loading');
+          this.status = document.getElementById('videoStatus');
+          this.videos = [];
+          
+          this.init();
+        }
+        
+        async init() {
+          try {
+            await this.loadVideos();
+            this.setupEventListeners();
+            this.hideLoading();
+          } catch (error) {
+            console.error('Erro ao inicializar:', error);
+            this.showError('Erro ao carregar vídeos');
+          }
+        }
+        
+        async loadVideos() {
+          try {
+            const response = await fetch('/api/videos');
+            const data = await response.json();
+            
+            if (data.success) {
+              this.videos = data.videos;
+              this.populateSelector();
+              this.updateStatus(`${this.videos.length} vídeos disponíveis`);
+            } else {
+              throw new Error(data.error);
+            }
+          } catch (error) {
+            console.error('Erro ao carregar lista de vídeos:', error);
+            this.updateStatus('Erro na conexão');
+          }
+        }
+        
+        populateSelector() {
+          this.selector.innerHTML = '';
+          
+          this.videos.forEach((video, index) => {
+            const option = document.createElement('option');
+            option.value = video.url;
+            option.textContent = video.name;
+            if (index === 0) option.selected = true;
+            this.selector.appendChild(option);
+          });
+        }
+        
+        setupEventListeners() {
+          // Seletor de vídeo
+          this.selector.addEventListener('change', (e) => {
+            if (e.target.value) {
+              this.changeVideo(e.target.value);
+            }
+          });
+          
+          // Mostrar controles ao mover o mouse
+          let hideControlsTimeout;
+          document.addEventListener('mousemove', () => {
+            this.controls.classList.add('show');
+            clearTimeout(hideControlsTimeout);
+            hideControlsTimeout = setTimeout(() => {
+              this.controls.classList.remove('show');
+            }, 3000);
+          });
+          
+          // Eventos do player
+          this.player.addEventListener('loadstart', () => {
+            this.updateStatus('Carregando...');
+          });
+          
+          this.player.addEventListener('canplay', () => {
+            this.updateStatus('Pronto para reproduzir');
+          });
+          
+          this.player.addEventListener('playing', () => {
+            this.updateStatus('Reproduzindo');
+          });
+          
+          this.player.addEventListener('error', (e) => {
+            this.updateStatus('Erro na reprodução');
+            console.error('Erro no vídeo:', e);
+          });
+        }
+        
+        changeVideo(videoUrl) {
+          this.player.src = videoUrl;
+          this.player.load();
+          this.updateStatus('Carregando novo vídeo...');
+        }
+        
+        hideLoading() {
+          this.loading.style.display = 'none';
+        }
+        
+        showError(message) {
+          this.loading.textContent = message;
+          this.loading.style.color = '#ff6b6b';
+        }
+        
+        updateStatus(message) {
+          this.status.textContent = message;
+        }
+      }
+      
+      // Inicializar quando a página carregar
+      document.addEventListener('DOMContentLoaded', () => {
+        new VideoPlayer();
+      });
+    </script>
+  </body>
+</html>
